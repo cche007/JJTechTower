@@ -1,0 +1,156 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This template creates 1 vpc and 2 subnets",
+    "Metadata": {
+    },
+    "Parameters": {
+      "vpccidrblock1": {
+          "Description": "this is to create cidr block for wfvpc1",
+          "Type": "String",
+          "Default": "10.0.0.0/16"
+      },
+      "vpc1pubsncidrblock": {
+          "Description": "this is to create pub sn for wfvpc1",
+          "Type": "String",
+          "Default": "10.0.0.0/24"
+      },
+      "vpc1privsncidrblock": {
+          "Description": "this is to create priv sn for wfvpc1",
+          "Type": "String",
+          "Default": "10.0.1.0/24"
+      },
+      "KeyName": {
+          "Description": "this is to create a keyname to ssh",
+          "Type": "String",
+          "Default": "ssh-keypair"
+      },
+      "ImageId": {
+          "Description": "this is the image id in nova region",
+          "Type": "String",
+          "Default": "ami-0cff7528ff583bf9a"
+      },
+      "InstanceType": {
+          "Description": "this is the instance type to use",
+          "Type": "String",
+          "Default": "t2.micro"
+      }
+    },
+    "Mappings": {
+    },
+    "Conditions": {
+    },
+    "Resources": {
+      "wfvpc1": {
+        "Type": "AWS::EC2::VPC",
+        "Properties": {
+          "CidrBlock": { "Ref": "vpccidrblock1" },
+          "Tags": [{ "Key": "Name", "Value":  "wfvpc1" }]
+        }
+      },
+      "wfvpc1pubsn": {
+        "Type": "AWS::EC2::Subnet",
+        "Properties": {
+          "AvailabilityZone": "us-east-1a",
+          "VpcId": { "Ref": "wfvpc1" },
+          "CidrBlock": { "Ref": "vpc1pubsncidrblock" },
+          "Tags": [{ "Key": "Name", "Value":  "wfvpc1pubsn" }]
+        }
+      },
+      "wfvpc1privsn": {
+        "Type": "AWS::EC2::Subnet",
+        "Properties": {
+          "AvailabilityZone": "us-east-1b",
+          "VpcId": { "Ref": "wfvpc1" },
+          "CidrBlock": { "Ref": "vpc1privsncidrblock" },
+          "Tags": [{ "Key": "Name", "Value":  "wfvpc1privsn" }]
+        }
+      },
+      "wfigw1": {
+        "Type": "AWS::EC2::InternetGateway",
+        "Properties": {
+          "Tags": [{ "Key": "Name", "Value":  "wfigw1" }]
+        }
+      },
+      "AttachGateway": {
+        "Type": "AWS::EC2::VPCGatewayAttachment",
+        "Properties": {
+          "VpcId": { "Ref": "wfvpc1" },
+          "InternetGatewayId": { "Ref": "wfigw1" }
+        }
+      },
+      "wfrtb1": {
+        "Type": "AWS::EC2::RouteTable",
+        "Properties": {
+          "VpcId": { "Ref": "wfvpc1" },
+          "Tags": [{ "Key": "Name", "Value":  "wfrtb1" }]
+        }
+      },
+      "wfroute1": {
+        "Type": "AWS::EC2::Route",
+        "Properties": {
+          "RouteTableId": { "Ref": "wfrtb1" },
+          "DestinationCidrBlock": "0.0.0.0/0",
+          "GatewayId": { "Ref": "wfigw1" }
+        }
+      },
+      "wfrtbasspub1": {
+        "Type": "AWS::EC2::SubnetRouteTableAssociation",
+        "Properties": {
+          "SubnetId": { "Ref": "wfvpc1pubsn" },
+          "RouteTableId": { "Ref": "wfrtb1" }
+        }
+      },
+      "wfnat" : {
+        "Type" : "AWS::EC2::NatGateway",
+        "Properties" : {
+          "AllocationId" : { "Fn::GetAtt" : ["EIP", "AllocationId"]},
+          "SubnetId" : { "Ref": "wfvpc1pubsn" },
+          "Tags" : [ {"Key" : "Name", "Value" : "wfnat" } ]
+        }
+      },
+      "EIP" : {
+        "Type" : "AWS::EC2::EIP",
+        "Properties" : {
+          "Domain" : { "Ref": "wfvpc1" }
+        }
+      },
+      "wfwebsg" : {
+        "Type" : "AWS::EC2::SecurityGroup",
+        "Properties" : {
+          "GroupDescription" : "Allow http to client host",
+          "VpcId" : {"Ref" : "wfvpc1"},
+          "SecurityGroupIngress" : [{
+            "IpProtocol" : "tcp",
+            "FromPort" : 80,
+            "ToPort" : 80,
+            "CidrIp" : "0.0.0.0/0"
+        }],
+        "SecurityGroupEgress" : [{
+            "IpProtocol" : "tcp",
+            "FromPort" : 80,
+            "ToPort" : 80,
+            "CidrIp" : "0.0.0.0/0"
+        }]
+        }
+      },
+      "webserver1": {
+          "Type": "AWS::EC2::Instance",
+          "Properties": {
+              "KeyName": { "Ref": "KeyName" },
+              "DisableApiTermination": "true",
+              "ImageId": { "Ref": "ImageId" },
+              "InstanceType": { "Ref": "InstanceType" },
+              "Monitoring": "false",
+              "SecurityGroupIds" : { "Ref": "wfwebsg" },
+              "Tags": [
+                  {
+                      "Key": "Name",
+                      "Value": "webserver1"
+                  }
+              ],
+      }
+              }
+      },
+    "Outputs": {
+    }
+}
